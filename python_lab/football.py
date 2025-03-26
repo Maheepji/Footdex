@@ -4,7 +4,7 @@ import pandas as pd
 # Load the dataset
 @st.cache_data
 def load_data():
-    data = pd.read_csv("fifa2021.csv")  # Update this to match your file name
+    data  = pd.read_csv("/python_lab/fifa2021.csv") # Update this to match your file name
     return data
 
 # Main app function
