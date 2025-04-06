@@ -1,69 +1,110 @@
-import streamlit as st
 import pandas as pd
+import streamlit as st
+import matplotlib.pyplot as plt
 
-# Load the dataset
-@st.cache_data
-def load_data():
-    data  = pd.read_csv("/python_lab/fifa2021.csv") # Update this to match your file name
-    return data
+# Load the CSV file
+file_path = 'football_mini.csv'
+try:
+    data = pd.read_csv(file_path, encoding='latin1')
+except FileNotFoundError:
+    st.error(f"Error: The file {file_path} was not found. Please ensure it is in the same directory as the script.")
+    st.stop()
+except Exception as e:
+    st.error(f"An error occurred while loading the CSV file: {e}")
+    st.stop()
 
-# Main app function
-def main():
-    # Load the dataset
-    try:
-        df = load_data()
-    except FileNotFoundError:
-        st.error("Dataset 'fifa2021.csv' not found. Please download it from Kaggle and place it in the same directory as this script.")
-        return
+# Clean up unnecessary columns (both GK and non-GK)
+all_columns = ['Name', 'Age', 'Nationality', 'Club', 'Position', 'Value', 'Wage',
+               'GKDiving', 'GKHandling', 'GKKicking', 'GKPositioning', 'GKReflexes',
+               'Crossing', 'Finishing', 'HeadingAccuracy', 'ShortPassing', 'Volleys',
+               'Dribbling', 'Curve', 'FKAccuracy', 'LongPassing', 'BallControl',
+               'Aggression', 'Interceptions', 'Positioning', 'Vision', 'Penalties', 'Composure',
+               'Marking', 'StandingTackle', 'SlidingTackle']
+data = data[all_columns]
 
-    # Title and description
-    st.title("Footballer-dex")
-    st.markdown("Search for a footballer and explore their stats, Pokédex-style!")
+# Streamlit app
+st.set_page_config(layout="wide")
 
-    # Search bar
-    player_name = st.text_input("Enter footballer name:", "").strip().lower()
-    
-    if player_name:
-        # Filter the dataframe based on the input name
-        player_data = df[df["name"].str.lower().str.contains(player_name, na=False)]
-        
-        if not player_data.empty:
-            # Display the first matching player
-            player = player_data.iloc[0]
-            
-            # Note: FIFA 21 dataset doesn't include direct image URLs, so we'll skip that
-            st.write("No player image available in this dataset.")
+# Updated title
+st.title("Football Player Database")
 
-            # Display key stats in a Pokédex-like format
-            st.subheader(f"#{player['sofifa_id']} - {player['name']}")
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.write(f"**Club**: {player['club_name']}")
-                st.write(f"**Nationality**: {player['nationality_name']}")
-                st.write(f"**Position**: {player['player_positions']}")
-                st.write(f"**Age**: {player['age']}")
-                st.write(f"**Height**: {player['height_cm']} cm")
-                st.write(f"**Weight**: {player['weight_kg']} kg")
-            
-            with col2:
-                st.write(f"**Overall Rating**: {player['overall']}")
-                st.write(f"**Value**: €{player['value_eur']:,}")
-                st.write(f"**Wage**: €{player['wage_eur']:,}")
-                st.write(f"**Preferred Foot**: {player['preferred_foot']}")
-                st.write(f"**Pace**: {player['pace']}")
-                st.write(f"**Shooting**: {player['shooting']}")
+# Search functionality
+player_name = st.text_input("Enter a player's name:")
 
-            # Pokédex-style description
-            st.markdown("---")
-            st.write(f"**Entry**: {player['name']} is a {player['player_positions']} from {player['nationality_name']}. "
-                     f"With a pace of {player['pace']} and shooting skill of {player['shooting']}, "
-                     f"this player shines for {player['club_name']}!")
-        else:
-            st.error("No footballer found with that name. Try again!")
+if player_name:
+    player = data[data['Name'].str.contains(player_name, case=False, na=False)].copy()
+
+    if player.empty:
+        st.write("Player not found.")
     else:
-        st.info("Enter a name to search for a footballer.")
+        for index, row in player.iterrows():
+            # Player Info
+            st.subheader(f"{row['Name']}")
+            st.write(f"**{row['Age']} years. {row['Nationality']}**")
+            st.write(f"**{row['Position']} • {row['Club']}**")
 
-# Run the app
-if __name__ == "__main__":
-    main()
+            # Metrics in columns
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Value", f"${float(row['Value'])/1000:.1f}M")
+            with col2:
+                st.metric("Wage", f"${float(row['Wage']):.0f}K/wk")
+            with col3:
+                st.metric("Position", f"{row['Position']}")
+
+            st.markdown("---")  # Divider
+
+            # Determine if the player is a central back or full back
+            if row['Position'] in ['LCB', 'RCB', 'LB', 'RB']:
+                st.subheader("Defensive Attributes")
+                labels = ['Aggression', 'Interceptions', 'Positioning', 'Vision', 'Composure', 'Marking', 'StandingTackle', 'SlidingTackle']
+                values = [row['Aggression'], row['Interceptions'], row['Positioning'], row['Vision'], row['Composure'], row['Marking'], row['StandingTackle'], row['SlidingTackle']]
+
+                # Horizontal Bar Chart
+                fig, ax = plt.subplots(figsize=(10, 6))
+                ax.barh(labels, values, color="#1f77b4")  # Use a blue color
+                ax.set_xlabel('Rating')
+                ax.set_ylabel('Attributes')
+                ax.set_title('Defensive Attributes')
+                ax.spines['top'].set_visible(False)
+                ax.spines['right'].set_visible(False)
+
+                # Add labels to the bars
+                for i, v in enumerate(values):
+                    ax.text(v + 3, i, str(v), color='black', va='center')
+
+                plt.gca().invert_yaxis()  # Invert y-axis to show the highest value at the top
+                plt.tight_layout()
+
+                st.pyplot(fig)
+
+            else:
+                # Visualization for other positions
+                st.subheader("Player Attributes")
+                labels = ['Crossing', 'Finishing', 'HeadingAccuracy', 'ShortPassing',
+                          'Volleys', 'Dribbling', 'Curve', 'FKAccuracy',
+                          'LongPassing', 'BallControl']
+                values = [row['Crossing'], row['Finishing'], row['HeadingAccuracy'],
+                          row['ShortPassing'], row['Volleys'], row['Dribbling'],
+                          row['Curve'], row['FKAccuracy'], row['LongPassing'],
+                          row['BallControl']]
+
+                # Horizontal Bar Chart
+                fig, ax = plt.subplots(figsize=(10, 6))
+                ax.barh(labels, values, color="#1f77b4")  # Use a blue color
+                ax.set_xlabel('Rating')
+                ax.set_ylabel('Attributes')
+                ax.set_title('Attributes')
+                ax.spines['top'].set_visible(False)
+                ax.spines['right'].set_visible(False)
+
+                # Add labels to the bars
+                for i, v in enumerate(values):
+                    ax.text(v + 3, i, str(v), color='black', va='center')
+
+                plt.gca().invert_yaxis()  # Invert y-axis to show the highest value at the top
+                plt.tight_layout()
+
+                st.pyplot(fig)
+
+            st.markdown("---")
